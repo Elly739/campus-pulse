@@ -15,7 +15,7 @@ export const Route = createFileRoute("/events/$id")({
 });
 
 function EventDetail() {
-  const { event } = Route.useLoaderData();
+  const { event } = Route.useLoaderData() as { event: CampusEvent };
   const cat = CATEGORY_STYLES[event.category];
   const [rsvp, setRsvp] = useState(false);
   const [saved, setSaved] = useState(false);
