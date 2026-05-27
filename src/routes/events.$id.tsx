@@ -2,11 +2,11 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, Calendar, MapPin, Users, Share2, Heart, Flame } from "lucide-react";
-import { getEvent, CATEGORY_STYLES } from "@/lib/events";
+import { getEvent, CATEGORY_STYLES, type CampusEvent } from "@/lib/events";
 import { Countdown } from "@/components/Countdown";
 
 export const Route = createFileRoute("/events/$id")({
-  loader: ({ params }) => {
+  loader: ({ params }): { event: CampusEvent } => {
     const event = getEvent(params.id);
     if (!event) throw notFound();
     return { event };
