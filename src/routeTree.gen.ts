@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SubmitRouteImport } from './routes/submit'
+import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as FeedRouteImport } from './routes/feed'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as EventsIdRouteImport } from './routes/events.$id'
 
@@ -19,9 +21,19 @@ const SubmitRoute = SubmitRouteImport.update({
   path: '/submit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FeedRoute = FeedRouteImport.update({
   id: '/feed',
   path: '/feed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -37,34 +49,49 @@ const EventsIdRoute = EventsIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/feed': typeof FeedRoute
+  '/profile': typeof ProfileRoute
   '/submit': typeof SubmitRoute
   '/events/$id': typeof EventsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/feed': typeof FeedRoute
+  '/profile': typeof ProfileRoute
   '/submit': typeof SubmitRoute
   '/events/$id': typeof EventsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/feed': typeof FeedRoute
+  '/profile': typeof ProfileRoute
   '/submit': typeof SubmitRoute
   '/events/$id': typeof EventsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/feed' | '/submit' | '/events/$id'
+  fullPaths: '/' | '/admin' | '/feed' | '/profile' | '/submit' | '/events/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/feed' | '/submit' | '/events/$id'
-  id: '__root__' | '/' | '/feed' | '/submit' | '/events/$id'
+  to: '/' | '/admin' | '/feed' | '/profile' | '/submit' | '/events/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/feed'
+    | '/profile'
+    | '/submit'
+    | '/events/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   FeedRoute: typeof FeedRoute
+  ProfileRoute: typeof ProfileRoute
   SubmitRoute: typeof SubmitRoute
   EventsIdRoute: typeof EventsIdRoute
 }
@@ -78,11 +105,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SubmitRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/feed': {
       id: '/feed'
       path: '/feed'
       fullPath: '/feed'
       preLoaderRoute: typeof FeedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -104,7 +145,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   FeedRoute: FeedRoute,
+  ProfileRoute: ProfileRoute,
   SubmitRoute: SubmitRoute,
   EventsIdRoute: EventsIdRoute,
 }
