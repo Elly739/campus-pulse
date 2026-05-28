@@ -1,9 +1,11 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { Sparkles, Loader2, Upload } from "lucide-react";
 import { CATEGORIES, type Category } from "@/lib/events";
-import { Sparkles } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/submit")({
   component: Submit,
@@ -16,17 +18,32 @@ const schema = z.object({
   location: z.string().trim().min(2).max(120),
   organizer: z.string().trim().min(2).max(120),
   startsAt: z.string().min(1, "Pick a date and time"),
-  imageUrl: z.string().url().optional().or(z.literal("")),
 });
 
 function Submit() {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [posterFile, setPosterFile] = useState<File | null>(null);
 
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  if (loading) return <main className="p-10 text-center text-muted-foreground">Loading…</main>;
+  if (!user) {
+    return (
+      <main className="mx-auto max-w-md px-4 py-16 text-center">
+        <h1 className="text-2xl font-bold">Sign in to submit an event</h1>
+        <p className="mt-2 text-sm text-muted-foreground">You need an account so we know who submitted the event.</p>
+        <Link to="/profile" className="mt-6 inline-flex rounded-full gradient-bg px-5 py-2.5 text-sm font-medium text-white">
+          Go to sign in
+        </Link>
+      </main>
+    );
+  }
+
+  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const data = Object.fromEntries(new FormData(e.currentTarget).entries());
+    const form = e.currentTarget;
+    const data = Object.fromEntries(new FormData(form).entries());
     const result = schema.safeParse(data);
     if (!result.success) {
       const errs: Record<string, string> = {};
@@ -36,11 +53,41 @@ function Submit() {
     }
     setErrors({});
     setSubmitting(true);
-    setTimeout(() => {
+
+    try {
+      let imageUrl: string | null = null;
+      if (posterFile) {
+        const ext = posterFile.name.split(".").pop() || "jpg";
+        const path = `${user.id}/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("event-posters").upload(path, posterFile, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+        if (upErr) throw upErr;
+        const { data: pub } = supabase.storage.from("event-posters").getPublicUrl(path);
+        imageUrl = pub.publicUrl;
+      }
+
+      const { error } = await supabase.from("events").insert({
+        title: result.data.title,
+        description: result.data.description,
+        long_description: result.data.description,
+        category: result.data.category,
+        location: result.data.location,
+        organizer: result.data.organizer,
+        starts_at: new Date(result.data.startsAt).toISOString(),
+        image: imageUrl,
+        submitted_by: user.id,
+        status: "pending",
+      });
+      if (error) throw error;
       toast.success("Submitted! Your event is pending admin review.");
-      setSubmitting(false);
       navigate({ to: "/feed" });
-    }, 700);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Submission failed");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -66,13 +113,29 @@ function Submit() {
           <Field label="Organizer" name="organizer" error={errors.organizer} placeholder="Club, society, or person" />
         </div>
 
-        <Field label="Cover image URL (optional)" name="imageUrl" error={errors.imageUrl} placeholder="https://…" />
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-medium">Event poster (optional)</span>
+          <div className="flex items-center gap-3">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-background/60 px-3.5 py-2.5 text-sm hover:bg-accent">
+              <Upload className="h-4 w-4" />
+              <span>{posterFile ? "Change image" : "Upload image"}</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => setPosterFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
+            {posterFile && <span className="text-xs text-muted-foreground truncate">{posterFile.name}</span>}
+          </div>
+        </label>
 
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-full gradient-bg py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 disabled:opacity-60"
+          className="w-full rounded-full gradient-bg py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 disabled:opacity-60 flex items-center justify-center gap-2"
         >
+          {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
           {submitting ? "Submitting…" : "Submit for review"}
         </button>
       </form>

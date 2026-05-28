@@ -1,25 +1,87 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Check, X, ShieldCheck, Calendar } from "lucide-react";
-import { EVENTS, CATEGORY_STYLES, type CampusEvent } from "@/lib/events";
+import { Check, X, ShieldCheck, Calendar, Loader2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { CATEGORY_STYLES } from "@/lib/events";
+import { fetchPendingEvents } from "@/lib/queries";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth, useIsAdmin } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/admin")({
   component: Admin,
 });
 
-// Mock pending queue derived from existing events
-const PENDING: CampusEvent[] = EVENTS.slice(0, 4).map((e) => ({ ...e, id: "pending-" + e.id }));
-
 function Admin() {
-  const [queue, setQueue] = useState(PENDING);
-  const total = EVENTS.length;
-  const trending = EVENTS.filter((e) => e.trending).length;
+  const { user, loading } = useAuth();
+  const { data: isAdmin, isLoading: roleLoading } = useIsAdmin(user);
+  const qc = useQueryClient();
 
-  const act = (id: string, approved: boolean) => {
-    setQueue((q) => q.filter((e) => e.id !== id));
-    toast.success(approved ? "Event approved and published" : "Event rejected");
-  };
+  const { data: queue, isLoading: queueLoading } = useQuery({
+    queryKey: ["events", "pending"],
+    queryFn: fetchPendingEvents,
+    enabled: !!isAdmin,
+  });
+
+  const { data: stats } = useQuery({
+    queryKey: ["events", "stats"],
+    queryFn: async () => {
+      const [{ count: approved }, { count: trending }] = await Promise.all([
+        supabase.from("events").select("*", { count: "exact", head: true }).eq("status", "approved"),
+        supabase.from("events").select("*", { count: "exact", head: true }).eq("trending", true).eq("status", "approved"),
+      ]);
+      return { approved: approved ?? 0, trending: trending ?? 0 };
+    },
+    enabled: !!isAdmin,
+  });
+
+  const act = useMutation({
+    mutationFn: async ({ id, approve }: { id: string; approve: boolean }) => {
+      const { error } = await supabase
+        .from("events")
+        .update({ status: approve ? "approved" : "rejected" })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["events"] });
+      toast.success(vars.approve ? "Event approved and published" : "Event rejected");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (loading || (user && roleLoading)) {
+    return (
+      <main className="flex min-h-[50vh] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </main>
+    );
+  }
+
+  if (!user) {
+    return (
+      <main className="mx-auto max-w-md px-4 py-20 text-center">
+        <ShieldCheck className="mx-auto h-10 w-10 text-violet-300" />
+        <h1 className="mt-4 text-2xl font-bold">Admin only</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Sign in to continue.</p>
+        <Link to="/profile" className="mt-6 inline-flex rounded-full gradient-bg px-5 py-2.5 text-sm font-medium text-white">
+          Sign in
+        </Link>
+      </main>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <main className="mx-auto max-w-md px-4 py-20 text-center">
+        <h1 className="text-2xl font-bold">Not authorized</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          You don't have admin access. Ask an existing admin to grant your account the admin role.
+        </p>
+        <p className="mt-4 text-xs text-muted-foreground break-all">Your user ID: <code>{user.id}</code></p>
+        <Link to="/" className="mt-6 inline-flex rounded-full border border-border px-5 py-2.5 text-sm">Go home</Link>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
@@ -36,14 +98,16 @@ function Admin() {
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <Stat label="Pending" value={queue.length} />
-        <Stat label="Published" value={total} />
-        <Stat label="Trending" value={trending} />
+        <Stat label="Pending" value={queue?.length ?? 0} />
+        <Stat label="Published" value={stats?.approved ?? 0} />
+        <Stat label="Trending" value={stats?.trending ?? 0} />
       </div>
 
       <section className="mt-10">
         <h2 className="mb-4 text-lg font-semibold">Pending review</h2>
-        {queue.length === 0 ? (
+        {queueLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+        ) : !queue || queue.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border p-12 text-center text-muted-foreground">
             All caught up. New submissions will appear here.
           </div>
@@ -67,14 +131,16 @@ function Admin() {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => act(e.id, false)}
-                      className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-sm hover:bg-accent"
+                      onClick={() => act.mutate({ id: e.id, approve: false })}
+                      disabled={act.isPending}
+                      className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-60"
                     >
                       <X className="h-4 w-4" /> Reject
                     </button>
                     <button
-                      onClick={() => act(e.id, true)}
-                      className="inline-flex items-center gap-1 rounded-full gradient-bg px-3 py-1.5 text-sm font-medium text-white shadow shadow-violet-500/30"
+                      onClick={() => act.mutate({ id: e.id, approve: true })}
+                      disabled={act.isPending}
+                      className="inline-flex items-center gap-1 rounded-full gradient-bg px-3 py-1.5 text-sm font-medium text-white shadow shadow-violet-500/30 disabled:opacity-60"
                     >
                       <Check className="h-4 w-4" /> Approve
                     </button>
