@@ -1,12 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Search, Clock } from "lucide-react";
 import { z } from "zod";
-import { EVENTS, type Category } from "@/lib/events";
+import { useQuery } from "@tanstack/react-query";
+import { type Category } from "@/lib/events";
 import { EventCard } from "@/components/EventCard";
 import { CategoryFilter } from "@/components/CategoryFilter";
 import { Countdown } from "@/components/Countdown";
-import { Link } from "@tanstack/react-router";
+import { fetchApprovedEvents } from "@/lib/queries";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const searchSchema = z.object({
   category: z.string().optional(),
@@ -23,22 +25,28 @@ function Feed() {
   const [cat, setCat] = useState<Category | "All">((initialCat as Category) || "All");
   const [q, setQ] = useState(initialQ || "");
 
+  const { data: events, isLoading } = useQuery({
+    queryKey: ["events", "approved"],
+    queryFn: fetchApprovedEvents,
+  });
+
   const filtered = useMemo(() => {
-    return EVENTS.filter((e) => (cat === "All" ? true : e.category === cat))
+    return (events ?? [])
+      .filter((e) => (cat === "All" ? true : e.category === cat))
       .filter((e) =>
         q.trim()
           ? (e.title + e.description + e.tags.join(" ") + e.organizer).toLowerCase().includes(q.toLowerCase())
           : true,
-      )
-      .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
-  }, [cat, q]);
+      );
+  }, [events, cat, q]);
 
   const closingSoon = useMemo(
     () =>
-      EVENTS.filter((e) => e.deadline && new Date(e.deadline).getTime() > Date.now())
+      (events ?? [])
+        .filter((e) => e.deadline && new Date(e.deadline).getTime() > Date.now())
         .sort((a, b) => +new Date(a.deadline!) - +new Date(b.deadline!))
         .slice(0, 4),
-    [],
+    [events],
   );
 
   return (
@@ -50,7 +58,6 @@ function Feed() {
         <p className="text-muted-foreground">Everything happening on campus, sorted by what's next.</p>
       </div>
 
-      {/* Search */}
       <div className="mt-6 flex items-center gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -67,7 +74,6 @@ function Feed() {
         <CategoryFilter value={cat} onChange={setCat} />
       </div>
 
-      {/* Closing soon strip */}
       {closingSoon.length > 0 && (
         <section className="mt-8">
           <div className="mb-3 flex items-center gap-2">
@@ -96,12 +102,17 @@ function Feed() {
         </section>
       )}
 
-      {/* Grid */}
       <section className="mt-8">
         <div className="mb-4 flex items-baseline justify-between">
-          <h2 className="text-lg font-semibold">{filtered.length} events</h2>
+          <h2 className="text-lg font-semibold">
+            {isLoading ? "Loading…" : `${filtered.length} events`}
+          </h2>
         </div>
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="aspect-[16/10] rounded-2xl" />)}
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border p-12 text-center text-muted-foreground">
             No events match your search. Try clearing filters.
           </div>

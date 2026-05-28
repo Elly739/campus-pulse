@@ -1,40 +1,79 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Calendar, MapPin, Users, Share2, Heart, Flame } from "lucide-react";
-import { getEvent, CATEGORY_STYLES, type CampusEvent } from "@/lib/events";
+import { ArrowLeft, Calendar, MapPin, Users, Share2, Flame, Loader2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { CATEGORY_STYLES } from "@/lib/events";
 import { Countdown } from "@/components/Countdown";
+import { fetchEventById, fetchHasRsvp } from "@/lib/queries";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/events/$id")({
-  loader: ({ params }): { event: CampusEvent } => {
-    const event = getEvent(params.id);
-    if (!event) throw notFound();
-    return { event };
-  },
   component: EventDetail,
 });
 
 function EventDetail() {
-  const { event } = Route.useLoaderData() as { event: CampusEvent };
-  const cat = CATEGORY_STYLES[event.category];
-  const [rsvp, setRsvp] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const { id } = Route.useParams();
+  const { user } = useAuth();
+  const qc = useQueryClient();
 
-  const toggleRsvp = () => {
-    setRsvp((v) => {
-      const next = !v;
-      toast.success(next ? `You're going to ${event.title}` : "RSVP cancelled");
-      return next;
-    });
-  };
+  const { data: event, isLoading } = useQuery({
+    queryKey: ["event", id],
+    queryFn: async () => {
+      const e = await fetchEventById(id);
+      if (!e) throw notFound();
+      return e;
+    },
+  });
+
+  const { data: hasRsvp } = useQuery({
+    queryKey: ["rsvp", id, user?.id],
+    queryFn: () => (user ? fetchHasRsvp(id, user.id) : Promise.resolve(false)),
+    enabled: !!user,
+  });
+
+  const rsvpMutation = useMutation({
+    mutationFn: async (next: boolean) => {
+      if (!user) throw new Error("Sign in to RSVP");
+      if (next) {
+        const { error } = await supabase.from("rsvps").insert({ event_id: id, user_id: user.id });
+        if (error && error.code !== "23505") throw error;
+      } else {
+        const { error } = await supabase.from("rsvps").delete().eq("event_id", id).eq("user_id", user.id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_d, next) => {
+      qc.invalidateQueries({ queryKey: ["rsvp", id] });
+      qc.invalidateQueries({ queryKey: ["event", id] });
+      qc.invalidateQueries({ queryKey: ["events"] });
+      qc.invalidateQueries({ queryKey: ["my-rsvps"] });
+      toast.success(next ? `You're going to ${event?.title}` : "RSVP cancelled");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const share = async () => {
     const url = typeof window !== "undefined" ? window.location.href : "";
     try {
-      if (navigator.share) await navigator.share({ title: event.title, url });
+      if (navigator.share) await navigator.share({ title: event?.title, url });
       else { await navigator.clipboard.writeText(url); toast.success("Link copied to clipboard"); }
-    } catch {/* ignore */}
+    } catch { /* ignore */ }
   };
+
+  if (isLoading) {
+    return (
+      <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 space-y-4">
+        <Skeleton className="aspect-[21/9] rounded-3xl" />
+        <Skeleton className="h-10 w-2/3" />
+        <Skeleton className="h-4 w-1/3" />
+      </main>
+    );
+  }
+  if (!event) return null;
+
+  const cat = CATEGORY_STYLES[event.category];
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
@@ -65,10 +104,8 @@ function EventDetail() {
           <p className="mt-2 text-muted-foreground">By {event.organizer}</p>
 
           <div className="mt-6 flex flex-wrap gap-2">
-            {event.tags.map((t: string) => (
-              <span key={t} className="rounded-full border border-border bg-card/60 px-2.5 py-1 text-xs">
-                {t}
-              </span>
+            {event.tags.map((t) => (
+              <span key={t} className="rounded-full border border-border bg-card/60 px-2.5 py-1 text-xs">{t}</span>
             ))}
           </div>
 
@@ -79,7 +116,7 @@ function EventDetail() {
           <div className="mt-8 grid gap-3 sm:grid-cols-2">
             <InfoRow icon={<Calendar className="h-4 w-4" />} label="Starts" value={new Date(event.startsAt).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} />
             <InfoRow icon={<MapPin className="h-4 w-4" />} label="Location" value={event.location} />
-            <InfoRow icon={<Users className="h-4 w-4" />} label="Interested" value={`${event.attendees + (rsvp ? 1 : 0)}`} />
+            <InfoRow icon={<Users className="h-4 w-4" />} label="Going" value={`${event.attendees}`} />
             {event.deadline && (
               <InfoRow
                 icon={<Calendar className="h-4 w-4 text-pink-400" />}
@@ -90,35 +127,36 @@ function EventDetail() {
           </div>
         </div>
 
-        {/* Sticky RSVP card */}
         <aside className="lg:sticky lg:top-24 self-start glass rounded-2xl p-5">
           <div className="text-xs uppercase tracking-wider text-muted-foreground">Starts in</div>
           <div className="mt-2"><Countdown target={event.startsAt} /></div>
 
-          <button
-            onClick={toggleRsvp}
-            className={`mt-5 w-full rounded-full py-3 text-sm font-semibold transition ${
-              rsvp
-                ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
-                : "gradient-bg text-white shadow-lg shadow-violet-500/30 hover:opacity-95"
-            }`}
-          >
-            {rsvp ? "You're going ✓" : "RSVP — I'm going"}
-          </button>
-
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          {!user ? (
+            <Link
+              to="/profile"
+              className="mt-5 block w-full rounded-full gradient-bg py-3 text-center text-sm font-semibold text-white shadow-lg shadow-violet-500/30"
+            >
+              Sign in to RSVP
+            </Link>
+          ) : (
             <button
-              onClick={() => setSaved((s) => !s)}
-              className={`flex items-center justify-center gap-1.5 rounded-full border py-2 text-sm transition ${
-                saved ? "border-pink-500/40 bg-pink-500/10 text-pink-300" : "border-border hover:bg-accent"
+              onClick={() => rsvpMutation.mutate(!hasRsvp)}
+              disabled={rsvpMutation.isPending}
+              className={`mt-5 w-full rounded-full py-3 text-sm font-semibold transition disabled:opacity-60 ${
+                hasRsvp
+                  ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                  : "gradient-bg text-white shadow-lg shadow-violet-500/30 hover:opacity-95"
               }`}
             >
-              <Heart className={`h-4 w-4 ${saved ? "fill-current" : ""}`} /> Save
+              {rsvpMutation.isPending ? (
+                <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+              ) : hasRsvp ? "You're going ✓ — Cancel RSVP" : "RSVP — I'm going"}
             </button>
-            <button onClick={share} className="flex items-center justify-center gap-1.5 rounded-full border border-border py-2 text-sm hover:bg-accent">
-              <Share2 className="h-4 w-4" /> Share
-            </button>
-          </div>
+          )}
+
+          <button onClick={share} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-border py-2 text-sm hover:bg-accent">
+            <Share2 className="h-4 w-4" /> Share
+          </button>
         </aside>
       </div>
     </main>

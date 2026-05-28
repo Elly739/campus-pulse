@@ -1,18 +1,24 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, Sparkles, Zap, Calendar, TrendingUp, Search, Bell } from "lucide-react";
-import { EVENTS, CATEGORIES, CATEGORY_STYLES } from "@/lib/events";
+import { useQuery } from "@tanstack/react-query";
+import { CATEGORIES, CATEGORY_STYLES } from "@/lib/events";
 import { EventCard } from "@/components/EventCard";
+import { fetchApprovedEvents } from "@/lib/queries";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/")({
   component: Landing,
 });
 
 function Landing() {
-  const trending = EVENTS.filter((e) => e.trending).slice(0, 3);
+  const { data: events, isLoading } = useQuery({
+    queryKey: ["events", "approved"],
+    queryFn: fetchApprovedEvents,
+  });
+  const trending = (events ?? []).filter((e) => e.trending).slice(0, 3);
 
   return (
     <main>
-      {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0" style={{ background: "var(--gradient-glow)" }} />
         <div className="mx-auto max-w-7xl px-4 pt-16 pb-20 sm:px-6 sm:pt-24 sm:pb-28 lg:pt-32">
@@ -42,7 +48,6 @@ function Landing() {
               </Link>
             </div>
 
-            {/* Category pills */}
             <div className="mt-10 flex flex-wrap justify-center gap-2">
               {CATEGORIES.map((c) => (
                 <Link
@@ -59,7 +64,6 @@ function Landing() {
         </div>
       </section>
 
-      {/* Features strip */}
       <section className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="grid gap-4 sm:grid-cols-3">
           <Feature icon={<Search className="h-5 w-5" />} title="Find your vibe" desc="Filter by category, search by keyword, save what you love." />
@@ -68,7 +72,6 @@ function Landing() {
         </div>
       </section>
 
-      {/* Trending */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24">
         <div className="mb-6 flex items-end justify-between">
           <div>
@@ -82,11 +85,14 @@ function Landing() {
           </Link>
         </div>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {trending.map((e, i) => <EventCard key={e.id} event={e} index={i} />)}
+          {isLoading
+            ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="aspect-[16/10] rounded-2xl" />)
+            : trending.length > 0
+              ? trending.map((e, i) => <EventCard key={e.id} event={e} index={i} />)
+              : <p className="text-muted-foreground col-span-full">No trending events yet — check back soon.</p>}
         </div>
       </section>
 
-      {/* CTA */}
       <section className="mx-auto max-w-7xl px-4 pb-24 sm:px-6">
         <div className="relative overflow-hidden rounded-3xl border border-border p-8 sm:p-14 text-center">
           <div className="absolute inset-0 -z-10 opacity-60" style={{ background: "var(--gradient-soft)" }} />
