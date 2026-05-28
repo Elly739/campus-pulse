@@ -160,6 +160,11 @@ function Stat({ label, value }: { label: string; value: number }) {
     <div className="glass rounded-2xl p-5">
       <div className="text-3xl font-bold gradient-text tabular-nums">{value}</div>
       <div className="mt-1 text-sm text-muted-foreground">{label}</div>
+function Stat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="glass rounded-2xl p-5">
+      <div className="text-3xl font-bold gradient-text tabular-nums">{value}</div>
+      <div className="mt-1 text-sm text-muted-foreground">{label}</div>
     </div>
   );
 }
