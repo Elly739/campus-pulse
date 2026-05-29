@@ -20,12 +20,12 @@ export function Navbar() {
         <nav className="hidden md:flex items-center gap-1 text-sm">
           <NavLink to="/feed">Feed</NavLink>
           <NavLink to="/submit">Submit</NavLink>
-          <NavLink to="/admin">Admin</NavLink>
-          <NavLink to="/feed">Feed</NavLink>
-          <NavLink to="/submit">Submit</NavLink>
           {isAdmin && <NavLink to="/admin">Admin</NavLink>}
         </nav>
+
+        <div className="flex items-center gap-2">
           <Link
+
             to="/feed"
             className="hidden sm:inline-flex h-9 w-9 items-center justify-center rounded-full border border-border hover:bg-accent transition-colors"
             aria-label="Search events"
