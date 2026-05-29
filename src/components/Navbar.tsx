@@ -1,8 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { Radar, Search, Plus, User } from "lucide-react";
+import { useAuth, useIsAdmin } from "@/hooks/use-auth";
 
 export function Navbar() {
-  return (
+export function Navbar() {
+  const { user } = useAuth();
+  const { data: isAdmin } = useIsAdmin(user);
     <header className="sticky top-0 z-40 glass">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <Link to="/" className="flex items-center gap-2 group">
@@ -18,9 +21,10 @@ export function Navbar() {
           <NavLink to="/feed">Feed</NavLink>
           <NavLink to="/submit">Submit</NavLink>
           <NavLink to="/admin">Admin</NavLink>
+          <NavLink to="/feed">Feed</NavLink>
+          <NavLink to="/submit">Submit</NavLink>
+          {isAdmin && <NavLink to="/admin">Admin</NavLink>}
         </nav>
-
-        <div className="flex items-center gap-2">
           <Link
             to="/feed"
             className="hidden sm:inline-flex h-9 w-9 items-center justify-center rounded-full border border-border hover:bg-accent transition-colors"
