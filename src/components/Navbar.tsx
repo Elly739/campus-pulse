@@ -20,6 +20,7 @@ export function Navbar() {
 
         <nav className="hidden md:flex items-center gap-1 text-sm">
           <NavLink to="/feed">Feed</NavLink>
+          <NavLink to="/about">About</NavLink>
           <NavLink to="/submit">Submit</NavLink>
           {isAdmin && <NavLink to="/admin">Admin</NavLink>}
         </nav>
