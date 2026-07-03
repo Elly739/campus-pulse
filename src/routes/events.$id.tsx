@@ -1,30 +1,66 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { ArrowLeft, Calendar, MapPin, Users, Share2, Flame, Loader2 } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Flame, Loader2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CATEGORY_STYLES } from "@/lib/events";
 import { Countdown } from "@/components/Countdown";
+import { AttendeesRow } from "@/components/AttendeesRow";
+import { ShareButtons } from "@/components/ShareButtons";
+import { FollowOrganizerButton } from "@/components/FollowOrganizerButton";
 import { fetchEventById, fetchHasRsvp } from "@/lib/queries";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/events/$id")({
+  loader: async ({ params }) => {
+    const event = await fetchEventById(params.id);
+    if (!event) throw notFound();
+    return { event };
+  },
+  head: ({ loaderData }) => {
+    if (!loaderData) {
+      return {
+        meta: [
+          { title: "Event — Campus Event Radar" },
+          { name: "robots", content: "noindex" },
+        ],
+      };
+    }
+    const { event } = loaderData;
+    const desc = event.description.slice(0, 160);
+    return {
+      meta: [
+        { title: `${event.title} — Campus Event Radar` },
+        { name: "description", content: desc },
+        { property: "og:title", content: event.title },
+        { property: "og:description", content: desc },
+        { property: "og:type", content: "event" },
+        { property: "og:image", content: event.image },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: event.title },
+        { name: "twitter:description", content: desc },
+        { name: "twitter:image", content: event.image },
+      ],
+    };
+  },
   component: EventDetail,
 });
 
 function EventDetail() {
   const { id } = Route.useParams();
+  const { event: initialEvent } = Route.useLoaderData();
   const { user } = useAuth();
   const qc = useQueryClient();
 
-  const { data: event, isLoading } = useQuery({
+  const { data: event = initialEvent } = useQuery({
     queryKey: ["event", id],
     queryFn: async () => {
       const e = await fetchEventById(id);
       if (!e) throw notFound();
       return e;
     },
+    initialData: initialEvent,
   });
 
   const { data: hasRsvp } = useQuery({
@@ -49,31 +85,23 @@ function EventDetail() {
       qc.invalidateQueries({ queryKey: ["event", id] });
       qc.invalidateQueries({ queryKey: ["events"] });
       qc.invalidateQueries({ queryKey: ["my-rsvps"] });
+      qc.invalidateQueries({ queryKey: ["attendees", id] });
       toast.success(next ? `You're going to ${event?.title}` : "RSVP cancelled");
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const share = async () => {
-    const url = typeof window !== "undefined" ? window.location.href : "";
-    try {
-      if (navigator.share) await navigator.share({ title: event?.title, url });
-      else { await navigator.clipboard.writeText(url); toast.success("Link copied to clipboard"); }
-    } catch { /* ignore */ }
-  };
-
-  if (isLoading) {
+  if (!event) {
     return (
       <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 space-y-4">
         <Skeleton className="aspect-[21/9] rounded-3xl" />
         <Skeleton className="h-10 w-2/3" />
-        <Skeleton className="h-4 w-1/3" />
       </main>
     );
   }
-  if (!event) return null;
 
-  const cat = CATEGORY_STYLES[event.category];
+  const cat = CATEGORY_STYLES[event.category as keyof typeof CATEGORY_STYLES];
+  const shareUrl = typeof window !== "undefined" ? window.location.href : `https://campus-buzz254.lovable.app/events/${event.id}`;
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
@@ -101,10 +129,24 @@ function EventDetail() {
       <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_320px]">
         <div>
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{event.title}</h1>
-          <p className="mt-2 text-muted-foreground">By {event.organizer}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <Link
+              to="/organizers/$name"
+              params={{ name: encodeURIComponent(event.organizer) }}
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              By <span className="font-medium text-foreground underline-offset-4 hover:underline">{event.organizer}</span>
+            </Link>
+            <FollowOrganizerButton organizer={event.organizer} />
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-border bg-card/40 p-4">
+            <div className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Who's going</div>
+            <AttendeesRow eventId={event.id} total={event.attendees} />
+          </div>
 
           <div className="mt-6 flex flex-wrap gap-2">
-            {event.tags.map((t) => (
+            {event.tags.map((t: string) => (
               <span key={t} className="rounded-full border border-border bg-card/60 px-2.5 py-1 text-xs">{t}</span>
             ))}
           </div>
@@ -116,7 +158,6 @@ function EventDetail() {
           <div className="mt-8 grid gap-3 sm:grid-cols-2">
             <InfoRow icon={<Calendar className="h-4 w-4" />} label="Starts" value={new Date(event.startsAt).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} />
             <InfoRow icon={<MapPin className="h-4 w-4" />} label="Location" value={event.location} />
-            <InfoRow icon={<Users className="h-4 w-4" />} label="Going" value={`${event.attendees}`} />
             {event.deadline && (
               <InfoRow
                 icon={<Calendar className="h-4 w-4 text-pink-400" />}
@@ -154,9 +195,10 @@ function EventDetail() {
             </button>
           )}
 
-          <button onClick={share} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-border py-2 text-sm hover:bg-accent">
-            <Share2 className="h-4 w-4" /> Share
-          </button>
+          <div className="mt-5">
+            <div className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Share</div>
+            <ShareButtons title={event.title} url={shareUrl} text={`${event.title} — ${event.description}`} />
+          </div>
         </aside>
       </div>
     </main>

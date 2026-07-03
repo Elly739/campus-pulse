@@ -61,3 +61,57 @@ export async function fetchHasRsvp(eventId: string, userId: string): Promise<boo
     .maybeSingle();
   return !!data;
 }
+
+export interface Attendee {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+}
+
+export async function fetchEventAttendees(eventId: string, limit = 12): Promise<Attendee[]> {
+  const { data, error } = await supabase
+    .from("rsvps")
+    .select("user_id")
+    .eq("event_id", eventId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error || !data || data.length === 0) return [];
+  const ids = data.map((r) => r.user_id);
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, full_name, avatar_url")
+    .in("id", ids);
+  return (profiles ?? []) as Attendee[];
+}
+
+export async function fetchEventsByOrganizer(organizer: string): Promise<CampusEvent[]> {
+  const { data, error } = await supabase
+    .from("events")
+    .select("*")
+    .eq("organizer", organizer)
+    .eq("status", "approved")
+    .order("starts_at", { ascending: false });
+  if (error) throw error;
+  const ids = (data ?? []).map((e) => e.id);
+  const counts = await fetchRsvpCounts(ids);
+  return (data ?? []).map((row) => mapEvent(row, counts[row.id] ?? 0));
+}
+
+export async function fetchOrganizerFollowerCount(organizer: string): Promise<number> {
+  const { count } = await supabase
+    .from("organizer_follows")
+    .select("*", { count: "exact", head: true })
+    .eq("organizer", organizer);
+  return count ?? 0;
+}
+
+export async function fetchIsFollowingOrganizer(organizer: string, userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("organizer_follows")
+    .select("id")
+    .eq("organizer", organizer)
+    .eq("user_id", userId)
+    .maybeSingle();
+  return !!data;
+}
+
