@@ -15,6 +15,7 @@ import { Route as FeedRouteImport } from './routes/feed'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OrganizersNameRouteImport } from './routes/organizers.$name'
 import { Route as EventsIdRouteImport } from './routes/events.$id'
 
 const SubmitRoute = SubmitRouteImport.update({
@@ -47,6 +48,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OrganizersNameRoute = OrganizersNameRouteImport.update({
+  id: '/organizers/$name',
+  path: '/organizers/$name',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EventsIdRoute = EventsIdRouteImport.update({
   id: '/events/$id',
   path: '/events/$id',
@@ -61,6 +67,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRoute
   '/submit': typeof SubmitRoute
   '/events/$id': typeof EventsIdRoute
+  '/organizers/$name': typeof OrganizersNameRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -70,6 +77,7 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileRoute
   '/submit': typeof SubmitRoute
   '/events/$id': typeof EventsIdRoute
+  '/organizers/$name': typeof OrganizersNameRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -80,6 +88,7 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRoute
   '/submit': typeof SubmitRoute
   '/events/$id': typeof EventsIdRoute
+  '/organizers/$name': typeof OrganizersNameRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -91,6 +100,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/submit'
     | '/events/$id'
+    | '/organizers/$name'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -100,6 +110,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/submit'
     | '/events/$id'
+    | '/organizers/$name'
   id:
     | '__root__'
     | '/'
@@ -109,6 +120,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/submit'
     | '/events/$id'
+    | '/organizers/$name'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -119,6 +131,7 @@ export interface RootRouteChildren {
   ProfileRoute: typeof ProfileRoute
   SubmitRoute: typeof SubmitRoute
   EventsIdRoute: typeof EventsIdRoute
+  OrganizersNameRoute: typeof OrganizersNameRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -165,6 +178,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/organizers/$name': {
+      id: '/organizers/$name'
+      path: '/organizers/$name'
+      fullPath: '/organizers/$name'
+      preLoaderRoute: typeof OrganizersNameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/events/$id': {
       id: '/events/$id'
       path: '/events/$id'
@@ -183,6 +203,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProfileRoute: ProfileRoute,
   SubmitRoute: SubmitRoute,
   EventsIdRoute: EventsIdRoute,
+  OrganizersNameRoute: OrganizersNameRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
