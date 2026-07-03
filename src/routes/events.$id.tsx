@@ -100,7 +100,7 @@ function EventDetail() {
     );
   }
 
-  const cat = CATEGORY_STYLES[event.category];
+  const cat = CATEGORY_STYLES[event.category as keyof typeof CATEGORY_STYLES];
   const shareUrl = typeof window !== "undefined" ? window.location.href : `https://campus-buzz254.lovable.app/events/${event.id}`;
 
   return (
