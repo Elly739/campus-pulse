@@ -146,7 +146,7 @@ function EventDetail() {
           </div>
 
           <div className="mt-6 flex flex-wrap gap-2">
-            {event.tags.map((t) => (
+            {event.tags.map((t: string) => (
               <span key={t} className="rounded-full border border-border bg-card/60 px-2.5 py-1 text-xs">{t}</span>
             ))}
           </div>
